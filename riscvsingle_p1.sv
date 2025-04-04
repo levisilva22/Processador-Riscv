@@ -37,6 +37,7 @@ module testbench();
       end
     end
 endmodule
+
 module top(input  logic        clk, reset, 
            output logic [31:0] WriteData, DataAdr, 
            output logic        MemWrite);
@@ -87,12 +88,13 @@ module controller(input  logic [6:0] op,
   logic       Branch;
 
   maindec md(op, ResultSrc, MemWrite, Branch,
-             ALUSrc, RegWrite, Jump, ImmSrc, ALUOp);
+             ALUSrc, RegWrite, Jump, ImmSrc, ALUOp); //decodifica a operação a ser realizada
   aludec  ad(op[5], funct3, funct7b5, ALUOp, ALUControl);
 
   assign PCSrc = Branch & Zero;
 endmodule
 
+// Modulo para decodificar a instrução
 module maindec(input  logic [6:0] op,
                output logic [1:0] ResultSrc,
                output logic       MemWrite,
@@ -101,14 +103,15 @@ module maindec(input  logic [6:0] op,
                output logic [1:0] ImmSrc,
                output logic [1:0] ALUOp);
 
-  logic [10:0] controls;
+  logic [10:0] controls; // instancia um array de 11 bits 
 
   assign {RegWrite, ImmSrc, ALUSrc, MemWrite,
-          ResultSrc, Branch, ALUOp} = controls;
+          ResultSrc, Branch, ALUOp} = controls; atribui os bits recebido ao controle 
 
-  always_comb
+  always_comb 
     case(op)
     // RegWrite_ImmSrc_ALUSrc_MemWrite_ResultSrc_Branch_ALUOp_Jump
+    // Com base no valor do opcode ele atribui uma operação correspondente ao controle
       7'b0000011: controls = 11'b1_00_1_0_01_0_00_0; // lw
       7'b0100011: controls = 11'b0_01_1_1_00_0_00_0; // sw
       7'b0110011: controls = 11'b1_xx_0_0_00_0_10_0; // R-type 
@@ -245,24 +248,25 @@ endmodule
 module imem(input  logic [31:0] a,
             output logic [31:0] rd);
 
-  logic [31:0] RAM[63:0];
+  logic [31:0] RAM[63:0]; // instancia um array de 64 x 32
 
   initial
-      $readmemh("riscvtest.txt",RAM);
+      $readmemh("riscvtest.txt",RAM); // Lê os comandos em hexa baseado em riscv
 
-  assign rd = RAM[a[31:2]]; // word aligned
+  assign rd = RAM[a[31:2]]; // word aligned, ou seja acessa a memória 
 endmodule
 
 module dmem(input  logic        clk, we,
             input  logic [31:0] a, wd,
             output logic [31:0] rd);
 
-  logic [31:0] RAM[63:0];
+  logic [31:0] RAM[63:0]; // instancia um vetor de memória
 
-  assign rd = RAM[a[31:2]]; // word aligned
+  assign rd = RAM[a[31:2]]; // word aligned // atribui a saída rd a o dada da memória e lê o dado se 
 
-  always_ff @(posedge clk)
-    if (we) RAM[a[31:2]] <= wd;
+  always_ff @(posedge clk) //flip flip de subida do clock
+    if (we) RAM[a[31:2]] <= wd; // se o sinal de escrita estiver ativo o valor 
+                                // de wd é escrito na memória
 endmodule
 
 module alu(input  logic [31:0] a, b,
