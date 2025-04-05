@@ -38,6 +38,7 @@ module testbench();
     end
 endmodule
 
+//
 module top(input  logic        clk, reset, 
            output logic [31:0] WriteData, DataAdr, 
            output logic        MemWrite);
@@ -47,8 +48,8 @@ module top(input  logic        clk, reset,
   // instantiate processor and memories
   riscvsingle rvsingle(clk, reset, PC, Instr, MemWrite, DataAdr, 
                        WriteData, ReadData);
-  imem imem(PC, Instr);
-  dmem dmem(clk, MemWrite, DataAdr, WriteData, ReadData);
+  imem imem(PC, Instr); // instancia a memória de instrução
+  dmem dmem(clk, MemWrite, DataAdr, WriteData, ReadData); // instancia a memória de dados
 endmodule
 
 module riscvsingle(input  logic        clk, reset,
@@ -57,7 +58,7 @@ module riscvsingle(input  logic        clk, reset,
                    output logic        MemWrite,
                    output logic [31:0] ALUResult, WriteData,
                    input  logic [31:0] ReadData);
-
+  // sinal do bloco de controle
   logic       ALUSrc, RegWrite, Jump, Zero;
   logic [1:0] ResultSrc, ImmSrc;
   logic [2:0] ALUControl;
@@ -65,7 +66,7 @@ module riscvsingle(input  logic        clk, reset,
   controller c(Instr[6:0], Instr[14:12], Instr[30], Zero,
                ResultSrc, MemWrite, PCSrc,
                ALUSrc, RegWrite, Jump,
-               ImmSrc, ALUControl);
+               ImmSrc, ALUControl); // Gera os sinal de controle 
   datapath dp(clk, reset, ResultSrc, PCSrc,
               ALUSrc, RegWrite,
               ImmSrc, ALUControl,
@@ -73,6 +74,7 @@ module riscvsingle(input  logic        clk, reset,
               ALUResult, WriteData, ReadData);
 endmodule
 
+// Modulo para gerar os sinal de controle
 module controller(input  logic [6:0] op,
                   input  logic [2:0] funct3,
                   input  logic       funct7b5,
@@ -86,12 +88,17 @@ module controller(input  logic [6:0] op,
 
   logic [1:0] ALUOp;
   logic       Branch;
-
+  
+  /* 
+    A função do bloco de controle é decodificar os bits da instrução
+    com isso maindec e aludec decoficam qual será a instrução e qual operação será feita 
+    na ALU, respectivamente
+  */
   maindec md(op, ResultSrc, MemWrite, Branch,
              ALUSrc, RegWrite, Jump, ImmSrc, ALUOp); //decodifica a operação a ser realizada
   aludec  ad(op[5], funct3, funct7b5, ALUOp, ALUControl);
 
-  assign PCSrc = Branch & Zero;
+  assign PCSrc = Branch & Zero; // PCsrc só ocorre se branch e a operação de subtração na ALU for zero
 endmodule
 
 // Modulo para decodificar a instrução
@@ -120,6 +127,7 @@ module maindec(input  logic [6:0] op,
     endcase
 endmodule
 
+// modulo de decodifica a operação feita na alu
 module aludec(input  logic       opb5,
               input  logic [2:0] funct3,
               input  logic       funct7b5, 
@@ -127,12 +135,13 @@ module aludec(input  logic       opb5,
               output logic [2:0] ALUControl);
 
   logic  RtypeSub;
+  // se o 5 bit dos 7 bits de funct7 for 1 e se o bit 5 de opcode for 1
   assign RtypeSub = funct7b5 & opb5;  // TRUE for R-type subtract instruction
 
   always_comb
     case(ALUOp)
-      2'b00:                ALUControl = 3'b000; // addition
-      2'b01:                ALUControl = 3'b001; // subtraction
+      2'b00:                ALUControl = 3'b000; // addition, lw, sw
+      2'b01:                ALUControl = 3'b001; // subtraction, branch
       default: case(funct3) // R-type or I-type ALU
                  3'b000:  if (RtypeSub) 
                             ALUControl = 3'b001; // sub
@@ -164,22 +173,23 @@ module datapath(input  logic        clk, reset,
   logic [31:0] Result;
 
   // next PC logic
-  flopr #(32) pcreg(clk, reset, PCNext, PC); 
-  adder       pcadd4(PC, 32'd4, PCPlus4);
-  adder       pcaddbranch(PC, ImmExt, PCTarget);
-  mux2 #(32)  pcmux(PCPlus4, PCTarget, PCSrc, PCNext);
+  flopr #(32) pcreg(clk, reset, PCNext, PC); // Registrador para o PC
+  adder       pcadd4(PC, 32'd4, PCPlus4); // Lógica PC + 4
+  adder       pcaddbranch(PC, ImmExt, PCTarget); // Lógica do PC + Imm
+  mux2 #(32)  pcmux(PCPlus4, PCTarget, PCSrc, PCNext); // Mux para definir um branch ou fluxo "normal" do PC
  
   // register file logic
   regfile     rf(clk, RegWrite, Instr[19:15], Instr[24:20], 
                  Instr[11:7], Result, SrcA, WriteData);
-  extend      ext(Instr[31:7], ImmSrc, ImmExt);
+  extend      ext(Instr[31:7], ImmSrc, ImmExt); // modulo do immediato
 
   // ALU logic
-  mux2 #(32)  srcbmux(WriteData, ImmExt, ALUSrc, SrcB);
-  alu         alu(SrcA, SrcB, ALUControl, ALUResult, Zero);
-  mux3 #(32)  resultmux(ALUResult, ReadData, 32'b0, ResultSrc, Result);
+  mux2 #(32)  srcbmux(WriteData, ImmExt, ALUSrc, SrcB); // Mux para verificar se a soma sera feita com o immediato ou com o rs2
+  alu         alu(SrcA, SrcB, ALUControl, ALUResult, Zero); 
+  mux3 #(32)  resultmux(ALUResult, ReadData, 32'b0, ResultSrc, Result); // Mux para passar o resultado da ALU direto ou o dado lido da memória
 endmodule
 
+// Banco de registradores
 module regfile(input  logic        clk, 
                input  logic        we3, 
                input  logic [ 4:0] a1, a2, a3, 
@@ -194,21 +204,23 @@ module regfile(input  logic        clk,
   // register 0 hardwired to 0
 
   always_ff @(posedge clk)
-    if (we3) rf[a3] <= wd3;	
+    if (we3) rf[a3] <= wd3;	// Se we3 estiver em alto o dado é escrito no registrador rd(a3)
 
-  assign rd1 = (a1 != 0) ? rf[a1] : 0;
-  assign rd2 = (a2 != 0) ? rf[a2] : 0;
+  assign rd1 = (a1 != 0) ? rf[a1] : 0; // verifica se o registrador rs1(a1) é 0 se for atribui 0 se não a1
+  assign rd2 = (a2 != 0) ? rf[a2] : 0; // verifica se o registrador rs20(a2) é 0 se for atribui 0 se não a2
 endmodule
 
+// Somador
 module adder(input  [31:0] a, b,
              output [31:0] y);
 
   assign y = a + b;
 endmodule
 
-module extend(input  logic [31:7] instr,
-              input  logic [1:0]  immsrc,
-              output logic [31:0] immext);
+// Modulo Immediato
+module extend(input  logic [31:7] instr, // bit do opcode nao importa
+              input  logic [1:0]  immsrc, // bit já decodificado pelo modulo controller
+              output logic [31:0] immext); // immediato de 32 bits
  
   always_comb
     case(immsrc) 
@@ -219,6 +231,7 @@ module extend(input  logic [31:7] instr,
     endcase             
 endmodule
 
+// Flip Flop genérico
 module flopr #(parameter WIDTH = 8)
               (input  logic             clk, reset,
                input  logic [WIDTH-1:0] d, 
