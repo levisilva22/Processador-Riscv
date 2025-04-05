@@ -1,44 +1,7 @@
 //COMPILE: iverilog.exe -g2012 -o riscvsingle_p1.vcd -tvvp .\riscvsingle_p1.sv
 //SIMULATE: vvp riscvsingle_p1
-module testbench();
 
-  logic        clk;
-  logic        reset;
-
-  logic [31:0] WriteData, DataAdr;
-  logic        MemWrite;
-
-  // instantiate device to be tested
-  top dut(clk, reset, WriteData, DataAdr, MemWrite);
-  
-  // initialize test
-  initial
-    begin
-      reset <= 1; # 22; reset <= 0;
-    end
-
-  // generate clock to sequence tests
-  always
-    begin
-      clk <= 1; # 5; clk <= 0; # 5;
-    end
-
-  // check results
-  always @(negedge clk)
-    begin
-      if(MemWrite) begin
-        if(DataAdr === 100 & WriteData === 25) begin
-          $display("Simulation succeeded");
-          $stop;
-        end else if (DataAdr !== 96) begin
-          $display("Simulation failed");
-          $stop;
-        end
-      end
-    end
-endmodule
-
-//
+// Implementa toda a arquitetura do riscv
 module top(input  logic        clk, reset, 
            output logic [31:0] WriteData, DataAdr, 
            output logic        MemWrite);
@@ -110,21 +73,21 @@ module maindec(input  logic [6:0] op,
                output logic [1:0] ImmSrc,
                output logic [1:0] ALUOp);
 
-  logic [10:0] controls; // instancia um array de 11 bits 
+  logic [11:0] controls; // instancia um array de 11 bits 
 
   assign {RegWrite, ImmSrc, ALUSrc, MemWrite,
-          ResultSrc, Branch, ALUOp} = controls; //atribui os bits recebido ao controle 
+          ResultSrc, Branch, ALUOp, Jump} = controls; //atribui os bits recebido ao controle 
 
   always_comb 
     case(op)
     // RegWrite_ImmSrc_ALUSrc_MemWrite_ResultSrc_Branch_ALUOp_Jump
-      7'b0000011: controls = 11'b1_00_1_0_01_0_00_0; // lw
-      7'b0100011: controls = 11'b0_01_1_1_00_0_00_0; // sw
-      7'b0110011: controls = 11'b1_xx_0_0_00_0_10_0; // R-type
-      7'b1100011: controls = 11'b0_10_0_0_00_1_01_0; // beq
-      7'b0010011: controls = 11'b1_00_1_0_00_0_10_0; // I-type ALU (addi, etc.)
-      7'b1101111: controls = 11'b1_11_0_0_10_0_00_1; // jal
-      default:    controls = 11'bx_xx_x_x_xx_x_xx_x; // non-implemented instruction
+      7'b0000011: controls = 12'b1_00_1_0_01_0_00_0; // lw
+      7'b0100011: controls = 12'b0_01_1_1_00_0_00_0; // sw
+      7'b0110011: controls = 12'b1_xx_0_0_00_0_10_0; // R-type
+      7'b1100011: controls = 12'b0_10_0_0_00_1_01_0; // beq
+      7'b0010011: controls = 12'b1_00_1_0_00_0_10_0; // I-type ALU (addi, etc.)
+      7'b1101111: controls = 12'b1_11_0_0_10_0_00_1; // jal
+      default:    controls = 12'bx_xx_x_x_xx_x_xx_x; // non-implemented instruction
     endcase
 endmodule
 
