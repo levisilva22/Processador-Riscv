@@ -21,8 +21,8 @@ module riscvsingle(input  logic        clk, reset,
                    output logic        MemWrite,
                    output logic [31:0] ALUResult, WriteData,
                    input  logic [31:0] ReadData);
-  // sinal do bloco de controle
-  logic       ALUSrc, RegWrite, Jump, Zero;
+
+  logic       ALUSrc, RegWrite, Jump, Zero, PCSrc;
   logic [1:0] ResultSrc, ImmSrc;
   logic [2:0] ALUControl;
 
@@ -61,7 +61,8 @@ module controller(input  logic [6:0] op,
              ALUSrc, RegWrite, Jump, ImmSrc, ALUOp); //decodifica a operação a ser realizada
   aludec  ad(op[5], funct3, funct7b5, ALUOp, ALUControl);
 
-  assign PCSrc = Branch & Zero; // PCsrc só ocorre se branch e a operação de subtração na ALU for zero
+  assign PCSrc = Branch & Zero | Jump;
+
 endmodule
 
 // Modulo para decodificar a instrução
@@ -73,21 +74,24 @@ module maindec(input  logic [6:0] op,
                output logic [1:0] ImmSrc,
                output logic [1:0] ALUOp);
 
-  logic [11:0] controls; // instancia um array de 11 bits 
+ 
+  logic [10:0] controls;  
 
   assign {RegWrite, ImmSrc, ALUSrc, MemWrite,
-          ResultSrc, Branch, ALUOp, Jump} = controls; //atribui os bits recebido ao controle 
+          ResultSrc, Branch, ALUOp, Jump} = controls;
+
 
   always_comb 
     case(op)
     // RegWrite_ImmSrc_ALUSrc_MemWrite_ResultSrc_Branch_ALUOp_Jump
-      7'b0000011: controls = 12'b1_00_1_0_01_0_00_0; // lw
-      7'b0100011: controls = 12'b0_01_1_1_00_0_00_0; // sw
-      7'b0110011: controls = 12'b1_xx_0_0_00_0_10_0; // R-type
-      7'b1100011: controls = 12'b0_10_0_0_00_1_01_0; // beq
-      7'b0010011: controls = 12'b1_00_1_0_00_0_10_0; // I-type ALU (addi, etc.)
-      7'b1101111: controls = 12'b1_11_0_0_10_0_00_1; // jal
-      default:    controls = 12'bx_xx_x_x_xx_x_xx_x; // non-implemented instruction
+      7'b0000011: controls = 11'b1_00_1_0_01_0_00_0; // lw
+      7'b0100011: controls = 11'b0_01_1_1_00_0_00_0; // sw
+      7'b0110011: controls = 11'b1_00_0_0_00_0_10_0; // R-type
+      7'b1100011: controls = 11'b0_10_0_0_00_1_01_0; // beq
+      7'b0010011: controls = 11'b1_00_1_0_00_0_10_0; // I-type ALU (addi, andi, ori, slti)
+      7'b1101111: controls = 11'b1_11_0_0_10_0_00_1; // jal
+      default:    controls = 11'bx_xx_x_x_xx_x_xx_x; // non-implemented instruction
+
     endcase
 endmodule
 
@@ -148,9 +152,10 @@ module datapath(input  logic        clk, reset,
   extend      ext(Instr[31:7], ImmSrc, ImmExt); // modulo do immediato
 
   // ALU logic
-  mux2 #(32)  srcbmux(WriteData, ImmExt, ALUSrc, SrcB); // Mux para verificar se a soma sera feita com o immediato ou com o rs2
-  alu         alu(SrcA, SrcB, ALUControl, ALUResult, Zero); 
-  mux3 #(32)  resultmux(ALUResult, ReadData, 32'b0, ResultSrc, Result); // Mux para passar o resultado da ALU direto ou o dado lido da memória
+  mux2 #(32)  srcbmux(WriteData, ImmExt, ALUSrc, SrcB);
+  alu         alu(SrcA, SrcB, ALUControl, ALUResult, Zero);
+  mux3 #(32)  resultmux(ALUResult, ReadData, PCPlus4, ResultSrc, Result);
+
 endmodule
 
 // Banco de registradores
