@@ -226,7 +226,7 @@ endmodule
 module imem(input  logic [31:0] a,
             output logic [31:0] rd);
 
-  logic [31:0] RAM[63:0]; // instancia um array de 64 x 32
+  logic [31:0] RAM[63:0]; // instancia a RAM de 64 x 32
 
   initial
       $readmemh("riscvtest.txt",RAM); // Lê os comandos em hexa baseado em riscv
