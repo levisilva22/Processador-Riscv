@@ -78,7 +78,7 @@ module maindec(input  logic [6:0] op,
   logic [10:0] controls;  
 
   assign {RegWrite, ImmSrc, ALUSrc, MemWrite,
-          ResultSrc, Branch, ALUOp, Jump} = controls;
+          ResultSrc, Branch, ALUOp, Jump} = controls; // Adicionado o sinal de Jump
 
   /*
     Adicionado as instruções do tipo I e tipo J
