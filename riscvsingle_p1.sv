@@ -22,7 +22,7 @@ module riscvsingle(input  logic        clk, reset,
                    output logic [31:0] ALUResult, WriteData,
                    input  logic [31:0] ReadData);
 
-  logic       ALUSrc, RegWrite, Jump, Zero, PCSrc;
+  logic       ALUSrc, RegWrite, Jump, Zero, PCSrc; // Criando um sinal lógico PCsr para ser propagado para o crontroller e datapath
   logic [1:0] ResultSrc, ImmSrc;
   logic [2:0] ALUControl;
 
@@ -61,7 +61,7 @@ module controller(input  logic [6:0] op,
              ALUSrc, RegWrite, Jump, ImmSrc, ALUOp); //decodifica a operação a ser realizada
   aludec  ad(op[5], funct3, funct7b5, ALUOp, ALUControl);
 
-  assign PCSrc = Branch & Zero | Jump;
+  assign PCSrc = Branch & Zero | Jump; // Acrescido o sinal Jump para verificar se PCsr é um branch ou um jal(Jump)
 
 endmodule
 
@@ -80,7 +80,9 @@ module maindec(input  logic [6:0] op,
   assign {RegWrite, ImmSrc, ALUSrc, MemWrite,
           ResultSrc, Branch, ALUOp, Jump} = controls;
 
-
+  /*
+    Adicionado as instruções do tipo I e tipo J
+  */
   always_comb 
     case(op)
     // RegWrite_ImmSrc_ALUSrc_MemWrite_ResultSrc_Branch_ALUOp_Jump
@@ -144,7 +146,7 @@ module datapath(input  logic        clk, reset,
   flopr #(32) pcreg(clk, reset, PCNext, PC); // Registrador para o PC
   adder       pcadd4(PC, 32'd4, PCPlus4); // Lógica PC + 4
   adder       pcaddbranch(PC, ImmExt, PCTarget); // Lógica do PC + Imm
-  mux2 #(32)  pcmux(PCPlus4, PCTarget, PCSrc, PCNext); // Mux para definir um branch ou fluxo "normal" do PC
+  mux2 #(32)  pcmux(PCPlus4, PCTarget, PCSrc, PCNext); // Mux para definir um branch/Jump ou fluxo "normal" do PC
  
   // register file logic
   regfile     rf(clk, RegWrite, Instr[19:15], Instr[24:20], 
@@ -154,7 +156,8 @@ module datapath(input  logic        clk, reset,
   // ALU logic
   mux2 #(32)  srcbmux(WriteData, ImmExt, ALUSrc, SrcB);
   alu         alu(SrcA, SrcB, ALUControl, ALUResult, Zero);
-  mux3 #(32)  resultmux(ALUResult, ReadData, PCPlus4, ResultSrc, Result);
+  mux3 #(32)  resultmux(ALUResult, ReadData, PCPlus4, ResultSrc, Result); //Adicionado o PCPlus4 para verificar no mux se Result sera ALUResult 
+                                                                          // ReadData ou Jump(PCPlus4)
 
 endmodule
 
@@ -191,6 +194,7 @@ module extend(input  logic [31:7] instr,
               input  logic [1:0]  immsrc,
               output logic [31:0] immext);
  
+ // Adiconado a exentesão do immediato para os tipos I e J
   always_comb
     case(immsrc) 
       2'b00:   immext = {{20{instr[31]}}, instr[31:20]};                      // I-type
